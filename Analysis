@@ -1,0 +1,23 @@
+Time series decomposition is a technique used to break down a time series into its underlying components, namely the trend, seasonality, and residuals. Each component provides valuable insights into the patterns and behavior of the time series.
+
+Original Series:
+The original series refers to the raw time series data, which represents the daily excess return indices for each commodity. This is the observed data that we aim to decompose and analyze.
+
+Trend Component:
+The trend component captures the long-term underlying behavior or direction of the time series. It represents the overall movement of the series over time, reflecting the general upward or downward trend. The trend component helps us identify whether the series is increasing, decreasing, or exhibiting any significant patterns.
+
+Seasonal Component:
+The seasonal component captures the repetitive patterns or fluctuations that occur within fixed time intervals, such as daily, weekly, monthly, or yearly patterns. It represents the systematic variations that occur due to seasonal effects. Analyzing the seasonal component helps us understand the cyclicality or periodic behavior of the time series.
+
+Residual Component:
+The residual component, also known as the irregular component or noise, represents the remaining variation in the time series that cannot be explained by the trend or seasonal components. It contains random or unpredictable fluctuations, measurement errors, and any other factors that are not accounted for by the trend and seasonality. Analyzing the residuals helps us identify any unusual or unexpected behavior in the data.
+
+By decomposing a time series into these components, we gain a better understanding of the underlying patterns and structure of the data. It allows us to separate the long-term trend, seasonal effects, and random fluctuations, enabling more accurate analysis, forecasting, and modeling.
+
+Plotting the original series along with the trend, seasonality, and residual components provides a visual representation of how each component contributes to the overall behavior of the time series. It helps in identifying the dominant trends, seasonal patterns, and any irregularities or outliers present in the data.
+
+Understanding these components is crucial for making informed decisions in various areas such as forecasting, anomaly detection, and identifying potential underlying factors that drive the time series behavior.
+
+we calculate the commodity market factor as the equally weighted average of all commodities in the dataset. We first create a weights variable as a pandas Series where each commodity is assigned an equal weight of 1 / len(df.columns).
+
+We then use the dot() function to perform a matrix multiplication between the DataFrame columns (commodity excess return indices) and the weights. This yields the commodity market factor, which represents the equally weighted average of all commodities.
