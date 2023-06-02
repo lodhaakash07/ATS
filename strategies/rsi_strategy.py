@@ -1,24 +1,23 @@
-def rsi_strategy(df, rsi_period=14, lookback_period=100, upper_threshold=90, lower_threshold=10):
+from indicators.rsi import calculate_rsi
+import numpy as np
+
+def rsi_strategy(data, rsi_period=14, lookback_period=100, upper_threshold=70, lower_threshold=30):
     # Calculate RSI
-    df['RSI'] = talib.RSI(df['Close'], timeperiod=rsi_period)
+    rsi = calculate_rsi(data, window=rsi_period)
     
     # Calculate dynamic thresholds
-    df['UpperThreshold'] = df['RSI'].rolling(lookback_period).quantile(upper_threshold / 100)
-    df['LowerThreshold'] = df['RSI'].rolling(lookback_period).quantile(lower_threshold / 100)
+    upper_threshold = rsi.rolling(lookback_period).quantile(upper_threshold / 100)
+    lower_threshold = rsi.rolling(lookback_period).quantile(lower_threshold / 100)
     
     # Calculate RSI divergence
-    df['PriceChange'] = df['Close'].diff()
-    df['RSIChange'] = df['RSI'].diff()
-    df['RSIDivergence'] = np.where((df['PriceChange'] > 0) & (df['RSIChange'] < 0), 1, 0)
-    df['RSIDivergence'] = np.where((df['PriceChange'] < 0) & (df['RSIChange'] > 0), -1, df['RSIDivergence'])
+    price_change = data.diff()
+    rsi_change = rsi.diff()
+    rsi_divergence = np.where((price_change > 0) & (rsi_change < 0), 1, 0)
+    rsi_divergence = np.where((price_change < 0) & (rsi_change > 0), -1, rsi_divergence)
     
     # Generate trading signals
-    df['Signal'] = 0
-    df.loc[df['RSI'] > df['UpperThreshold'], 'Signal'] = -1
-    df.loc[df['RSI'] < df['LowerThreshold'], 'Signal'] = 1
-    df['Signal'] += df['RSIDivergence']
+    signal = np.where(rsi > upper_threshold, -1, 0)
+    signal = np.where(rsi < lower_threshold, 1, signal)
+    signal += rsi_divergence
     
-    # Apply signal lag
-    df['Signal'] = df['Signal'].shift()
-    
-    return df
+    return signal

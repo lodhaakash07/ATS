@@ -21,3 +21,7 @@ Understanding these components is crucial for making informed decisions in vario
 we calculate the commodity market factor as the equally weighted average of all commodities in the dataset. We first create a weights variable as a pandas Series where each commodity is assigned an equal weight of 1 / len(df.columns).
 
 We then use the dot() function to perform a matrix multiplication between the DataFrame columns (commodity excess return indices) and the weights. This yields the commodity market factor, which represents the equally weighted average of all commodities.
+
+
+
+
