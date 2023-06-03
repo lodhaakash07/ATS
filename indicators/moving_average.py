@@ -1,8 +1,16 @@
-def calculate_moving_average(data, window, exponential=False):
-    if exponential:
-        return data.ewm(span=window, adjust=False).mean()
+import numpy as np
+
+def calculate_moving_average(data, period, type='simple'):
+    if type == 'simple':
+        return data.rolling(window=period).mean()
+    elif type == 'weighted':
+        weights = np.arange(1, period + 1)
+        return data.rolling(window=period).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
+    elif type == 'ema':
+        return data.ewm(span=period, adjust=False).mean()
     else:
-        return data.rolling(window).mean()
+        raise ValueError("Invalid moving average type. Supported types are 'simple', 'weighted', and 'ema'.")
+
 
 
 def calculate_kama(price_series, n=10, pow1=2, pow2=30):

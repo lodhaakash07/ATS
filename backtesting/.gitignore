@@ -1,0 +1,9 @@
+# Python-specific entries
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/

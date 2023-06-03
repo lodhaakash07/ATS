@@ -1,11 +1,11 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from utils.data_loader import load_commodities_data
-from strategies.moving_average_strategy import moving_average_strategy
-from strategies.rsi_strategy import rsi_strategy
-from strategies.bollinger_band_strategy import bollinger_band_strategy
+import numpy as np
 from portfolio.portfolio import Portfolio
 from backtesting.backtester import Backtester
+from strategies.ta_strategy import TA_Strategies
+
 
 def perform_time_series_analysis(df):
     for column in df.columns:
@@ -73,41 +73,16 @@ df = load_commodities_data(file_path)
 
 # Set the date column as the index
 df.set_index('Dates', inplace=True)
-
+df.sort_index(inplace=True)
 # Perform time series analysis
 #perform_time_series_analysis(df)
 
 # Calculate commodity market factor
 #calculate_commodity_market_factor(df)
 
-# Iterate over each commodity
-for column in df.columns:
-    # Extract the price series for the current commodity
-    price_series = df[column]
+strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
 
-    # Generate trading signals based on the moving average strategy for the current commodity
-    ma_signals = moving_average_strategy(price_series, price_series)
-
-    # Generate trading signals based on the RSI strategy for the current commodity
-    rsi_signals = rsi_strategy(price_series, column)
-
-    # Generate trading signals based on the Bollinger Bands strategy for the current commodity
-    bb_signals = bollinger_band_strategy(price_series)
-
-    # Combine the signals into a single column
-    signals = ma_signals['Signal'] + rsi_signals['Signal'] + bb_signals['Signal']
-    
-    # Add the signals to the dataset
-    df[f'{column}_Signal'] = signals
-
-
+portfolio = Portfolio(initial_capital=1000000)
 
 # Create an instance of the Backtester class
-backtester = Backtester(df)
-
-# Set the portfolio
-backtester.set_portfolio(Portfolio())
-
-
-# Generate reports and visualizations
-#backtester.generate_reports()
+backtester = Backtester(df.copy(), strategy, portfolio)
