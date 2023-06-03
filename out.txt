@@ -1,0 +1,493 @@
+backtesting/sensitivity_analysis.py
+import statsmodels.api as sm
+
+def find_sensitivity(returns, market_factor):
+
+    model = sm.OLS(returns, market_factor)
+    results = model.fit()
+
+    coefficients = results.params
+
+    sensitivity_to_market = coefficients['market_factor']
+
+    return sensitivity_to_market
+indicators/bollinger_bands.py
+def calculate_bollinger_bands(data, window):
+    # Calculate the rolling mean (SMA) using the window size
+    sma = data.rolling(window).mean()
+    
+    # Calculate the rolling standard deviation (std) using the window size
+    std = data.rolling(window).std()
+    
+    # Calculate the upper band as the SMA plus 2 times the std
+    upper_band = sma + 2 * std
+    
+    # Calculate the lower band as the SMA minus 2 times the std
+    lower_band = sma - 2 * std
+    
+    return upper_band, lower_band, sma
+indicators/moving_average.py
+import numpy as np
+
+def calculate_moving_average(data, period, type='simple'):
+    if type == 'simple':
+        return data.rolling(window=period).mean()
+    elif type == 'weighted':
+        weights = np.arange(1, period + 1)
+        return data.rolling(window=period).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
+    elif type == 'ema':
+        return data.ewm(span=period, adjust=False).mean()
+    else:
+        raise ValueError("Invalid moving average type. Supported types are 'simple', 'weighted', and 'ema'.")
+
+
+
+def calculate_kama(price_series, n=10, pow1=2, pow2=30):
+    '''Calculate the Kaufman Adaptive Moving Average(KAMA) for a given series
+    Parameters:
+        price_series : pandas series, timeseries of price 
+        n            : integer, lookback period
+        pow1         : integer, fastest limit of exponential moving average window
+        pow2         : integer, slowest limit of exponential moving average window
+    Return:
+        pandas series of KAMA indicator
+    '''
+    # Calculate the absolute price change (daily)
+    delta = abs(price_series - price_series.shift())
+    
+    # Calculate the efficiency ratio = delta(n)/sum(n)
+    efficiency_ratio = abs(price_series - price_series.shift(n)) / delta.rolling(n).sum()
+
+    # Calculate the smoothing constant
+    smoothing_constant = (efficiency_ratio * (2 / (pow1 + 1) - 2 / (pow2 + 1)) + 2 / (pow2 + 1)) ** 2
+
+    # Calculate the KAMA
+    kama = np.zeros_like(price_series)
+    kama[:n] = price_series[:n]
+    
+    for i in range(n, len(price_series)):
+        kama[i] = kama[i - 1] + smoothing_constant[i] * (price_series[i] - kama[i - 1])
+    
+    return pd.Series(kama, index=price_series.index)indicators/rsi.py
+import numpy as np
+
+def calculate_rsi(data, window=14):
+    diff = data.diff()
+    up = diff.where(diff > 0, 0)
+    down = -diff.where(diff < 0, 0)
+    avg_gain = up.rolling(window).mean()
+    avg_loss = down.rolling(window).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+portfolio/portfolio.py
+import pandas as pd
+import csv
+import numpy as np
+
+class Portfolio:
+    def __init__(self, initial_capital):
+        self.initial_capital = initial_capital
+        self.capital = initial_capital
+        self.positions = []
+        self.trade_logs = []
+        self.portfolio_pnl = []
+
+    def add_positions(self, to_trade, position_sizes, data):
+
+        
+        for ticker in to_trade:
+            
+            entry_price = data[ticker].tolist()[0]
+      
+            position = {
+                'date': data.index[0],
+                'ticker': ticker,
+                'entry_price': data[ticker],
+                'amount': position_sizes[ticker], 
+                'exit_price': None  
+            }
+            
+            self.positions.append(position)
+
+            
+
+            # Add the trade to trade_logs
+            
+            trade_log = {
+                'date': data.index[0],
+                'ticker': ticker,
+                'entry_price': entry_price,
+                'exit_price': None,  
+                'amount': position_sizes[ticker]  
+            }
+            
+            self.trade_logs.append(trade_log)
+
+
+    def remove_positions(self, data):
+
+        updated_positions = []
+
+
+
+        for position in self.positions:
+            ticker = position['ticker']
+            exit_price = data.loc[:, ticker].tolist()[0]
+            position['exit_price'] = exit_price
+        
+    
+            trade_log = {
+                'date': data.index[0],
+                'ticker': ticker,
+                'entry_price': position['entry_price'].iloc[0],
+                'exit_price': exit_price,
+                'amount': position['amount']
+            }
+            
+            self.trade_logs.append(trade_log)
+
+
+        self.positions = updated_positions
+
+    def getCurrentTickers(self):
+        currentTickers = {}
+        for position in self.positions:
+
+            currentTickers[position['ticker']] = 1 if position['amount'] > 0 else -1
+        return currentTickers
+    
+    def processTradeLogs(self, name=""):
+        self.trade_logs = pd.DataFrame(self.trade_logs)
+        self.trade_logs.set_index('date', inplace=True)
+        self.trade_logs.dropna(subset=['entry_price', 'exit_price'], inplace=True)
+
+        self.trade_logs['pnl'] = self.trade_logs['amount'] * (self.trade_logs['exit_price'] - self.trade_logs['entry_price'])
+    
+        # Calculate cumulative PnL
+        self.trade_logs['cumulative_pnl'] = self.trade_logs['pnl'].cumsum()
+        self.trade_logs.to_csv('data/processed/' + name + '_logs.csv')
+
+
+
+    def updatePortfolioPnl(self, data):
+        pnl = 0;
+        for position in self.positions:
+            exit_price = data.loc[:, position['ticker']].tolist()[0]
+            entry_price = position['entry_price'][0],
+            pnl = pnl + ((exit_price - entry_price) * position['amount'])
+
+        pnl_update = {
+                'date': data.index[0],
+                'pnl': pnl,
+        }
+            
+        self.portfolio_pnl.append(pnl_update)
+
+    def processPortfolioPnl(self):
+
+        self.portfolio_pnl = pd.DataFrame(self.portfolio_pnl)
+        self.portfolio_pnl.set_index('date', inplace=True)
+        self.portfolio_pnl['returns'] = self.portfolio_pnl['pnl'].pct_change()
+
+        self.portfolio_pnl['cumulative_pnl'] = self.portfolio_pnl['returns'].cumsum()risk_management/position_sizing.py
+import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+
+class PositionSizer:
+    def __init__(self, capital, risk_percentage):
+        self.capital = capital
+        self.risk_percentage = risk_percentage
+
+    def calculate_position_size(self, data, toTrade):
+      
+        prices = data[toTrade].copy()
+        returns = np.log(prices / prices.shift(1)).dropna()
+        volatilities = returns.std()
+        inv_volatilities = 1 / volatilities
+        weights = inv_volatilities / inv_volatilities.sum()
+        position_size = self.capital * weights
+        position_sizes = {ticker: size for ticker, size in zip(toTrade, position_size)}
+
+        # Return the position sizes
+        return position_sizes
+
+    def markov_position_size(self, data, toTrade):
+        prices = data[toTrade].copy()
+        
+        returns = np.log(prices / prices.shift(1)).dropna()
+
+        # Define the objective function for portfolio optimization
+        def objective_function(weights):
+            portfolio_returns = np.dot(returns, weights)
+            portfolio_variance = np.dot(weights, np.dot(returns.cov(), weights))
+            utility = portfolio_returns - 0.5 * self.risk_percentage * portfolio_variance
+            return -np.sum(1 / utility)  # Use the inverse of utility as the objective
+
+        # Define the constraint for portfolio weights summing up to 1
+        constraint = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
+
+        # Set the initial guess
+        initial_weights = np.ones(len(toTrade)) / len(toTrade)
+
+
+        bounds = [(0, 1) for _ in range(len(toTrade))]
+
+
+        result = minimize(objective_function, initial_weights, method='SLSQP', constraints=constraint, bounds=bounds)
+
+
+        optimal_weights = result.x
+
+        # Calculate the position size based on the optimal weights and available capital
+        position_size = self.capital * optimal_weights
+
+        # Create a dictionary to store the ticker and corresponding position size
+        position_sizes = {ticker: size for ticker, size in zip(toTrade, position_size)}
+
+        return position_sizesstrategies/ta_strategy.py
+from indicators.rsi import calculate_rsi
+from indicators.moving_average import calculate_moving_average
+from indicators.bollinger_bands import calculate_bollinger_bands
+import numpy as np
+import pandas as pd
+
+class TA_Strategies:
+    def __init__(self, rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20):
+        self.rsi_window = rsi_window
+        self.ma_short_period = ma_short_period
+        self.ma_long_period = ma_long_period
+        self.bb_window = bb_window
+
+    def generate_signal(self, data):
+        rsi = calculate_rsi(data, window=self.rsi_window)
+        long_momentum = calculate_moving_average(rsi, period=self.ma_long_period, type="weighted")
+        short_momentum = calculate_moving_average(rsi, period=self.ma_short_period, type="ema")
+        bollinger_band = calculate_bollinger_bands(data, window=self.bb_window)
+
+      
+        signal = pd.Series(0, index=data.index)
+
+        # Go long if the conditions are met
+        long_conditions = (rsi < 50) & (long_momentum < 50) & (short_momentum > long_momentum) & (data > bollinger_band[2])
+        signal.loc[long_conditions] = 1
+
+        # Go short if the conditions are met
+        short_conditions = (rsi > 50) & (long_momentum > 50) & (long_momentum < short_momentum) & (data < bollinger_band[2])
+        signal.loc[short_conditions] = -1
+
+        # Forward fill the signal
+        signal = signal.fillna(method='ffill')
+
+        return signal
+utils/data_loader.py
+import pandas as pd
+
+def load_commodities_data(file_path):
+    # Read the Excel file 
+    df = pd.read_excel(file_path, sheet_name='Return Indices')
+    df['Dates'] = pd.to_datetime(df['Dates'])
+    return df
+utils/data_loader.py
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import statsmodels.api as sm
+
+def get_market_factor(df):
+    market_factor = []
+    for index, row in df.iterrows():
+        available_assets = row.count() - 1  # Exclude the 'Dates' column
+        total_return = row.dropna().sum()
+        weighted_average = total_return / available_assets
+        market_factor.append(weighted_average)
+
+    cmf = pd.DataFrame(market_factor)
+    cmf.index = df.index
+   
+   
+    # Plot the commodity market factor
+    plt.figure(figsize=(10, 6))
+    plt.plot(cmf.index, cmf)
+    plt.xlabel('Date')
+    plt.ylabel('Commodity Market Factor')
+    plt.title('Commodity Market Factor - Weighted Average')
+    plt.grid(True)
+    plt.show()
+
+
+    market_factor_statistics = cmf.describe()
+    print('\nCommodity Market Factor - Descriptive Statistics:')
+    print(market_factor_statistics)
+    
+    # Close the figure to release memory
+    plt.close()
+
+    return cmf
+
+utils/time_series_analysis.py
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import statsmodels.api as sm
+import os
+
+def perform_time_series_analysis(df):
+    statistics = []
+    
+    for column in df.columns:
+       
+        column_data = df[column].dropna()
+        
+        # Perform time series analysis
+        decomposition = sm.tsa.seasonal_decompose(column_data, model='additive')
+        
+        # Calculate numerical statistics
+        mean = column_data.mean()
+        std = column_data.std()
+        autocorr = column_data.autocorr()
+        
+      
+        stats = {'Commodity': column,
+                 'Mean': mean,
+                 'Standard Deviation': std,
+                 'Autocorrelation': autocorr}
+        
+        # Append the dictionary to the list
+        statistics.append(stats)
+        
+
+        plt.figure(figsize=(12, 8))
+        plt.subplot(411)
+        plt.plot(column_data.index, column_data, label='Original')
+        plt.legend(loc='best')
+        plt.subplot(412)
+        plt.plot(column_data.index, decomposition.trend, label='Trend')
+        plt.legend(loc='best')
+        plt.subplot(413)
+        plt.plot(column_data.index, decomposition.seasonal, label='Seasonal')
+        plt.legend(loc='best')
+        plt.subplot(414)
+        plt.plot(column_data.index, decomposition.resid, label='Residual')
+        plt.legend(loc='best')
+        plt.tight_layout()
+        plt.title(f'{column} - Time Series Analysis')
+        plt.show()
+
+    
+        plt.close()
+    
+
+    statistics_df = pd.DataFrame(statistics)
+    
+
+    print(statistics_df)
+main.py
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import statsmodels.api as sm
+import os
+
+from utils.data_loader import load_commodities_data
+from portfolio.portfolio import Portfolio
+from backtesting.backtester import Backtester
+from strategies.ta_strategy import TA_Strategies
+from backtesting.trade_analytics import generate_trade_analytics
+from backtesting.metrics import calculate_metrics
+from backtesting.sensitivity_analysis import find_sensitivity
+from utils.time_series_analysis import perform_time_series_analysis
+from utils.get_market_factor import get_market_factor
+
+import warnings
+warnings.filterwarnings("ignore")
+
+# Create the output folder if it doesn't exist
+output_folder = 'output'
+os.makedirs(output_folder, exist_ok=True)
+
+global add_section
+
+def add_section():
+    print("------------------------")
+    print()
+
+
+
+# Load the data from the Excel file
+file_path = 'data/raw/Commodities Data thru 18May23.xlsx'
+df = load_commodities_data(file_path)
+
+
+# Set the date column as the index
+df.set_index('Dates', inplace=True)
+
+
+print("Summary statistics for each assets")
+perform_time_series_analysis(df)
+add_section()
+
+# Calculate commodity market factor
+print("Commodity market factor")
+cmf = get_market_factor(df)
+
+print(add_section)
+
+
+strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
+
+portfolio = Portfolio(initial_capital=1)
+
+portfolio_cmf = Portfolio(initial_capital=1)
+
+risk_percentage = 5
+
+
+backtester = Backtester(df.copy(), strategy, risk_percentage, portfolio)
+backtester_cmf = Backtester(cmf.copy(), strategy, risk_percentage, portfolio_cmf)
+
+backtester.execute_trades("portfolio")
+backtester_cmf.execute_trades("cmf")
+
+# Trade analytics 
+print('Trade analytics for the portfolio')
+generate_trade_analytics(portfolio.trade_logs)
+add_section()
+
+print(' Trade Analytics for the Commodity Market Factor')
+generate_trade_analytics(portfolio_cmf.trade_logs )
+add_section()
+
+
+matrics = calculate_metrics(portfolio.trade_logs['pnl'], portfolio_cmf.trade_logs['pnl'])
+
+# Print the metrics
+print('Comparing metics of the commodity return vs commodity factor returns')
+for key, value in matrics.items():
+    print(key + ':', value)
+
+add_section()
+    
+# Sensitivity to market factors
+common_index = portfolio.trade_logs.index.intersection(portfolio_cmf.trade_logs.index)
+subset_returns = portfolio.trade_logs.loc[common_index, 'pnl']
+subset_cmf_returns = portfolio_cmf.trade_logs.loc[common_index, 'pnl']
+
+
+# Sector wise contribution
+
+sector_mappings = pd.read_excel(file_path, sheet_name='Assets')
+sector_mappings = dict(zip(sector_mappings['Commodity'], sector_mappings['Sector']))
+portfolio.trade_logs['Sector'] = portfolio.trade_logs['ticker'].apply(lambda x: next((v for k, v in sector_mappings.items() if k in x), 'noMatching'))
+
+# Calculate the sector-wise total PnL
+sector_pnl = portfolio.trade_logs.groupby('Sector')['pnl'].sum()
+
+total_pnl = portfolio.trade_logs['pnl'].sum()
+
+sector_pnl = (sector_pnl / total_pnl) * 100
+
+print('Sector-wise Contribution:')
+print(sector_pnl)
+add_section()
