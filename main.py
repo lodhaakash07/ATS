@@ -5,7 +5,8 @@ import numpy as np
 from portfolio.portfolio import Portfolio
 from backtesting.backtester import Backtester
 from strategies.ta_strategy import TA_Strategies
-
+import warnings
+warnings.filterwarnings("ignore")
 
 def perform_time_series_analysis(df):
     for column in df.columns:
@@ -82,7 +83,11 @@ df.sort_index(inplace=True)
 
 strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
 
-portfolio = Portfolio(initial_capital=1000000)
+portfolio = Portfolio(initial_capital=10000000)
+
+risk_percentage = 0.05
 
 # Create an instance of the Backtester class
-backtester = Backtester(df.copy(), strategy, portfolio)
+backtester = Backtester(df.copy(), strategy, risk_percentage, portfolio)
+
+backtester.execute_trades()
