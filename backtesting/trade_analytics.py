@@ -3,27 +3,27 @@ import matplotlib.pyplot as plt
 
 def generate_trade_analytics(df):
 
-    # Calculate the number of trades
+    # number of trades
     total_trades = len(df)
     profitable_trades = len(df[df['pnl'] > 0])
     unprofitable_trades = len(df[df['pnl'] < 0])
     
-    # Calculate the average profit and loss
+    # average profit and loss
     average_profit = df[df['pnl'] > 0]['pnl'].mean()
     average_loss = df[df['pnl'] < 0]['pnl'].mean()
 
-    # Calculate the profit factor
+    # profit factor
     profit_factor = df[df['pnl'] > 0]['pnl'].sum() / abs(df[df['pnl'] < 0]['pnl'].sum())
 
-    # Calculate the win rate
+    # win rate
     win_rate = profitable_trades / total_trades
 
-    # Calculate the maximum drawdown
+    # maximum drawdown
     df['previous_cumulative_pnl'] = df['cumulative_pnl'].shift(1).fillna(0)
     df['drawdown'] = df['cumulative_pnl'] - df['previous_cumulative_pnl']
     max_drawdown = df['drawdown'].min()
 
-    # Calculate the recovery period for the maximum drawdown
+    # recovery period for the maximum drawdown
     recovery_period = len(df[df['drawdown'] == max_drawdown])
 
 

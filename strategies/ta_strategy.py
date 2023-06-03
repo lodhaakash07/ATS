@@ -17,7 +17,7 @@ class TA_Strategies:
         short_momentum = calculate_moving_average(rsi, period=self.ma_short_period, type="ema")
         bollinger_band = calculate_bollinger_bands(data, window=self.bb_window)
 
-        # Generate trading signals based on the conditions
+      
         signal = pd.Series(0, index=data.index)
 
         # Go long if the conditions are met

@@ -6,6 +6,7 @@ if [[ -z "$VIRTUAL_ENV" ]]; then
     if [[ ! -d "venv" ]]; then
         echo "Creating virtual environment..."
         python3 -m venv venv
+        source venv/bin/activate
     fi
 
     echo "Activating the virtual environment..."
@@ -16,4 +17,5 @@ fi
 if ! cmp --silent requirements.txt <(pip freeze); then
     echo "Installing missing packages..."
     pip install -r requirements.txt
+    source venv/bin/activate
 fi

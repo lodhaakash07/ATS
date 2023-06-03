@@ -11,6 +11,8 @@ from strategies.ta_strategy import TA_Strategies
 from backtesting.trade_analytics import generate_trade_analytics
 from backtesting.metrics import calculate_metrics
 from backtesting.sensitivity_analysis import find_sensitivity
+from utils.time_series_analysis import perform_time_series_analysis
+from utils.get_market_factor import get_market_factor
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -19,93 +21,12 @@ warnings.filterwarnings("ignore")
 output_folder = 'output'
 os.makedirs(output_folder, exist_ok=True)
 
-def perform_time_series_analysis(df):
-    statistics = []
-    
-    for column in df.columns:
-        # Remove missing values
-        column_data = df[column].dropna()
-        
-        # Perform time series analysis
-        decomposition = sm.tsa.seasonal_decompose(column_data, model='additive')
-        
-        # Calculate numerical statistics
-        mean = column_data.mean()
-        std = column_data.std()
-        autocorr = column_data.autocorr()
-        
-        # Store statistics in a dictionary
-        stats = {'Commodity': column,
-                 'Mean': mean,
-                 'Standard Deviation': std,
-                 'Autocorrelation': autocorr}
-        
-        # Append the dictionary to the list
-        statistics.append(stats)
-        
-        # Plot the original series, trend, seasonal, and residual components
-        plt.figure(figsize=(12, 8))
-        plt.subplot(411)
-        plt.plot(column_data.index, column_data, label='Original')
-        plt.legend(loc='best')
-        plt.subplot(412)
-        plt.plot(column_data.index, decomposition.trend, label='Trend')
-        plt.legend(loc='best')
-        plt.subplot(413)
-        plt.plot(column_data.index, decomposition.seasonal, label='Seasonal')
-        plt.legend(loc='best')
-        plt.subplot(414)
-        plt.plot(column_data.index, decomposition.resid, label='Residual')
-        plt.legend(loc='best')
-        plt.tight_layout()
-        plt.title(f'{column} - Time Series Analysis')
-        plt.show()
+global add_section
 
-        # Save the figure as a PNG image
-        plt.savefig(f'{output_folder}/{column}_time_series_analysis.png')
-        
-        # Close the figure to release memory
-        plt.close()
-    
-    # Create a dataframe from the list of dictionaries
-    statistics_df = pd.DataFrame(statistics)
-    
-    # Print the statistics dataframe
-    print(statistics_df)
+def add_section():
+    print("------------------------")
+    print()
 
-def calculate_commodity_market_factor(df):
-    market_factor = []
-    for index, row in df.iterrows():
-        available_assets = row.count() - 1  # Exclude the 'Dates' column
-        total_return = row.dropna().sum()
-        weighted_average = total_return / available_assets
-        market_factor.append(weighted_average)
-
-    cmf = pd.DataFrame(market_factor)
-    cmf.index = df.index
-   
-   
-    # Plot the commodity market factor
-    plt.figure(figsize=(10, 6))
-    plt.plot(cmf.index, cmf)
-    plt.xlabel('Date')
-    plt.ylabel('Commodity Market Factor')
-    plt.title('Commodity Market Factor - Weighted Average')
-    plt.grid(True)
-    plt.show()
-
-    # Print descriptive statistics for the commodity market factor
-    market_factor_statistics = cmf.describe()
-    print('\nCommodity Market Factor - Descriptive Statistics:')
-    print(market_factor_statistics)
-
-    # Save the figure as a PNG image
-    plt.savefig(f'{output_folder}/commodity_market_factor.png')
-    
-    # Close the figure to release memory
-    plt.close()
-
-    return cmf
 
 
 # Load the data from the Excel file
@@ -117,13 +38,15 @@ df = load_commodities_data(file_path)
 df.set_index('Dates', inplace=True)
 
 
-# Perform time series analysis
 print("Summary statistics for each assets")
-#perform_time_series_analysis(df)
+perform_time_series_analysis(df)
+add_section()
 
 # Calculate commodity market factor
 print("Commodity market factor")
-cmf=calculate_commodity_market_factor(df)
+cmf = get_market_factor(df)
+
+print(add_section)
 
 
 strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
@@ -134,7 +57,7 @@ portfolio_cmf = Portfolio(initial_capital=1)
 
 risk_percentage = 5
 
-# Create an instance of the Backtester class
+
 backtester = Backtester(df.copy(), strategy, risk_percentage, portfolio)
 backtester_cmf = Backtester(cmf.copy(), strategy, risk_percentage, portfolio_cmf)
 
@@ -142,12 +65,13 @@ backtester.execute_trades("portfolio")
 backtester_cmf.execute_trades("cmf")
 
 # Trade analytics 
-print(' Trade analytics for the portfolio')
+print('Trade analytics for the portfolio')
 generate_trade_analytics(portfolio.trade_logs)
+add_section()
 
 print(' Trade Analytics for the Commodity Market Factor')
 generate_trade_analytics(portfolio_cmf.trade_logs )
-
+add_section()
 
 
 matrics = calculate_metrics(portfolio.trade_logs['pnl'], portfolio_cmf.trade_logs['pnl'])
@@ -156,6 +80,8 @@ matrics = calculate_metrics(portfolio.trade_logs['pnl'], portfolio_cmf.trade_log
 print('Comparing metics of the commodity return vs commodity factor returns')
 for key, value in matrics.items():
     print(key + ':', value)
+
+add_section()
     
 # Sensitivity to market factors
 common_index = portfolio.trade_logs.index.intersection(portfolio_cmf.trade_logs.index)
@@ -172,8 +98,10 @@ portfolio.trade_logs['Sector'] = portfolio.trade_logs['ticker'].apply(lambda x: 
 # Calculate the sector-wise total PnL
 sector_pnl = portfolio.trade_logs.groupby('Sector')['pnl'].sum()
 
+total_pnl = portfolio.trade_logs['pnl'].sum()
 
+sector_pnl = (sector_pnl / total_pnl) * 100
 
-# Print the sector-wise PnL
-print('Sector-wise PnL:')
+print('Sector-wise Contribution:')
 print(sector_pnl)
+add_section()

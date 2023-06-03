@@ -12,7 +12,7 @@ class Portfolio:
 
     def add_positions(self, to_trade, position_sizes, data):
 
-        # Iterate over the tickers to add positions
+        
         for ticker in to_trade:
             
             entry_price = data[ticker].tolist()[0]
@@ -21,8 +21,8 @@ class Portfolio:
                 'date': data.index[0],
                 'ticker': ticker,
                 'entry_price': data[ticker],
-                'amount': position_sizes[ticker],  # Use position size from position_sizes
-                'exit_price': None  # Initialize exit price as None
+                'amount': position_sizes[ticker], 
+                'exit_price': None  
             }
             
             self.positions.append(position)
@@ -35,8 +35,8 @@ class Portfolio:
                 'date': data.index[0],
                 'ticker': ticker,
                 'entry_price': entry_price,
-                'exit_price': None,  # Initialize exit price as None
-                'amount': position_sizes[ticker]  # Use position size from position_sizes
+                'exit_price': None,  
+                'amount': position_sizes[ticker]  
             }
             
             self.trade_logs.append(trade_log)
@@ -53,7 +53,7 @@ class Portfolio:
             exit_price = data.loc[:, ticker].tolist()[0]
             position['exit_price'] = exit_price
         
-            # Update the trade log with exit price and date
+    
             trade_log = {
                 'date': data.index[0],
                 'ticker': ticker,
@@ -64,7 +64,7 @@ class Portfolio:
             
             self.trade_logs.append(trade_log)
 
-        # Update the positions list by removing the closed positions
+
         self.positions = updated_positions
 
     def getCurrentTickers(self):
@@ -75,11 +75,10 @@ class Portfolio:
         return currentTickers
     
     def processTradeLogs(self, name=""):
-        # Convert the trade logs to a DataFrame
         self.trade_logs = pd.DataFrame(self.trade_logs)
         self.trade_logs.set_index('date', inplace=True)
         self.trade_logs.dropna(subset=['entry_price', 'exit_price'], inplace=True)
-        # Calculate the profit or loss for each trade
+
         self.trade_logs['pnl'] = self.trade_logs['amount'] * (self.trade_logs['exit_price'] - self.trade_logs['entry_price'])
     
         # Calculate cumulative PnL
@@ -103,11 +102,9 @@ class Portfolio:
         self.portfolio_pnl.append(pnl_update)
 
     def processPortfolioPnl(self):
-        # Convert the trade logs to a DataFrame
+
         self.portfolio_pnl = pd.DataFrame(self.portfolio_pnl)
         self.portfolio_pnl.set_index('date', inplace=True)
-        # Calculate the profit or loss for each trade
         self.portfolio_pnl['returns'] = self.portfolio_pnl['pnl'].pct_change()
-    
-        # Calculate cumulative PnL
+
         self.portfolio_pnl['cumulative_pnl'] = self.portfolio_pnl['returns'].cumsum()

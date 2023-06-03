@@ -20,20 +20,18 @@ class Backtester:
 
         # Generate the signal for trade
         for column in self.data.columns:
-            # Extract the price for the current commodity
+          
             price = self.data[column]
 
-            # Generate trading signals based on the TA strategy
             signal = self.strategy.generate_signal(price)
             
             self.signal[column] = signal
         
         self.signal.to_csv('data/processed/signals.csv')
         for index, row in self.signal.iterrows():
-            # extrct columns for which the value is non-zero
+            
             to_trade = row[row != 0].index.tolist()
            
-
             if to_trade:
                 # Check if these tickers are already trading in the portfolio
                       
