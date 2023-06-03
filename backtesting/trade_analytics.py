@@ -1,23 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def generate_trade_analytics(trade_logs):
-    # Convert the trade logs to a DataFrame
-    df = pd.DataFrame(trade_logs)
-
-    # Set 'date' as the index of the DataFrame
-    df.set_index('date', inplace=True)
-
-    # Filter out rows that don't have both entry and exit prices
-    df = df.dropna(subset=['entry_price', 'exit_price'])
-    
-    # Calculate the profit or loss for each trade
-    df['pnl'] = df['amount'] * (df['exit_price'] - df['entry_price'])
-    
-    # Calculate cumulative PnL
-    df['cumulative_pnl'] = df['pnl'].cumsum()
-
-    df.to_csv('1.csv')
+def generate_trade_analytics(df):
 
     # Calculate the number of trades
     total_trades = len(df)
@@ -34,6 +18,16 @@ def generate_trade_analytics(trade_logs):
     # Calculate the win rate
     win_rate = profitable_trades / total_trades
 
+    # Calculate the maximum drawdown
+    df['previous_cumulative_pnl'] = df['cumulative_pnl'].shift(1).fillna(0)
+    df['drawdown'] = df['cumulative_pnl'] - df['previous_cumulative_pnl']
+    max_drawdown = df['drawdown'].min()
+
+    # Calculate the recovery period for the maximum drawdown
+    recovery_period = len(df[df['drawdown'] == max_drawdown])
+
+
+
     # Print trade analytics
     print('Total Trades:', total_trades)
     print('Profitable Trades:', profitable_trades)
@@ -42,6 +36,8 @@ def generate_trade_analytics(trade_logs):
     print('Average Loss:', average_loss)
     print('Profit Factor:', profit_factor)
     print('Win Rate:', win_rate)
+    print('Max Drawdown:', max_drawdown)
+    print('Recovery Period:', recovery_period)
 
     # Plot histogram of profits and losses
     plt.figure(figsize=(10, 6))

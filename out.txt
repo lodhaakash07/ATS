@@ -1,70 +1,74 @@
-backtesting/backtester.py
-from risk_management.transaction_cost import calculate_transaction_cost
-from risk_management.position_sizing import PositionSizer
-from strategies.ta_strategy import TA_Strategies
+backtesting/trade_analytics.py
 import pandas as pd
 import matplotlib.pyplot as plt
-from backtesting.trade_analytics import generate_trade_analytics
 
+def generate_trade_analytics(trade_logs):
+    # Convert the trade logs to a DataFrame
+    df = pd.DataFrame(trade_logs)
 
-class Backtester:
-    def __init__(self, data, strategy, risk_percentage, portfolio):
-        self.data = data
-        self.strategy = strategy
-        self.portfolio = portfolio
-        self.signal = pd.DataFrame(index=data.index)
-        self.risk_percentage = risk_percentage
-        self.position_sizer = PositionSizer(self.portfolio.capital, self.risk_percentage)
+    # Set 'date' as the index of the DataFrame
+    df.set_index('date', inplace=True)
 
+    # Filter out rows that don't have both entry and exit prices
+    df = df.dropna(subset=['entry_price', 'exit_price'])
+    
+    # Calculate the profit or loss for each trade
+    df['pnl'] = df['amount'] * (df['exit_price'] - df['entry_price'])
+    
+    # Calculate cumulative PnL
+    df['cumulative_pnl'] = df['pnl'].cumsum()
 
-    def execute_trades(self):
+    df.to_csv('1.csv')
 
-        # Generate the signal for trade
-        for column in self.data.columns:
-            # Extract the price for the current commodity
-            price = self.data[column]
+    # Calculate the number of trades
+    total_trades = len(df)
+    profitable_trades = len(df[df['pnl'] > 0])
+    unprofitable_trades = len(df[df['pnl'] < 0])
+    
+    # Calculate the average profit and loss
+    average_profit = df[df['pnl'] > 0]['pnl'].mean()
+    average_loss = df[df['pnl'] < 0]['pnl'].mean()
 
-            # Generate trading signals based on the TA strategy
-            signal = self.strategy.generate_signal(price)
-            
-            self.signal[column] = signal
-        
-        
-        for index, row in self.signal.iterrows():
-            # extrct columns for which the value is non-zero
-            to_trade = row[row != 0].index.tolist()
-           
+    # Calculate the profit factor
+    profit_factor = df[df['pnl'] > 0]['pnl'].sum() / abs(df[df['pnl'] < 0]['pnl'].sum())
 
-            if to_trade:
-                # Check if these tickers are already trading in the portfolio
-                      
-                currentPositions = self.portfolio.getCurrentTickers()
+    # Calculate the win rate
+    win_rate = profitable_trades / total_trades
 
-                rebalance = False
-                for ticker in to_trade:
-                    if (not currentPositions.get(ticker)):
-                        rebalance = True
-                    else:
-                        if int(currentPositions[ticker]) != int(row[ticker]):
-                            rebalance = True;
-                
-                if rebalance:
-                    for key, value in currentPositions.items():
-                        if key not in to_trade:
-                            to_trade.append(key)
+    # Print trade analytics
+    print('Total Trades:', total_trades)
+    print('Profitable Trades:', profitable_trades)
+    print('Unprofitable Trades:', unprofitable_trades)
+    print('Average Profit:', average_profit)
+    print('Average Loss:', average_loss)
+    print('Profit Factor:', profit_factor)
+    print('Win Rate:', win_rate)
 
+    # Plot histogram of profits and losses
+    plt.figure(figsize=(10, 6))
+    plt.hist(df['pnl'], bins=20, color='blue', alpha=0.7)
+    plt.title('Histogram of Profits and Losses')
+    plt.xlabel('PnL')
+    plt.ylabel('Frequency')
+    plt.show()
 
-                    self.portfolio.remove_positions(self.data.loc[[index], :])
-                    position_size = self.position_sizer.calculate_position_size(self.data.loc[:index, ], to_trade)
-                    for temp in to_trade:
-                        position_size[temp] = position_size[temp] * row[temp]
-                    self.portfolio.add_positions(to_trade, position_size, self.data.loc[[index], :])
-        
-        
-        self.portfolio.remove_positions(self.data.iloc[[self.data.shape[0] - 1], :])
-        generate_trade_analytics(self.portfolio.trade_logs)
+    # Plot cumulative profits over time
+    df['cumulative_pnl'].plot(figsize=(10, 6))
+    plt.title('Cumulative Profits Over Time')
+    plt.xlabel('Date')
+    plt.ylabel('Cumulative PnL')
+    plt.show()
 
-       indicators/bollinger_bands.py
+    # Plot profits and losses by ticker
+    df.groupby('ticker')['pnl'].sum().plot(kind='bar', figsize=(10, 6))
+    plt.title('Profits and Losses by Ticker')
+    plt.xlabel('Ticker')
+    plt.ylabel('PnL')
+    plt.show()
+
+    # Return the DataFrame for further analysis
+    return df
+indicators/bollinger_bands.py
 def calculate_bollinger_bands(data, window):
     # Calculate the rolling mean (SMA) using the window size
     sma = data.rolling(window).mean()
@@ -151,6 +155,7 @@ class Portfolio:
         for ticker in to_trade:
             
             entry_price = data[ticker].tolist()[0]
+      
             position = {
                 'date': data.index[0],
                 'ticker': ticker,
@@ -158,12 +163,13 @@ class Portfolio:
                 'amount': position_sizes[ticker],  # Use position size from position_sizes
                 'exit_price': None  # Initialize exit price as None
             }
-
+            
             self.positions.append(position)
 
             
 
             # Add the trade to trade_logs
+            
             trade_log = {
                 'date': data.index[0],
                 'ticker': ticker,
@@ -171,6 +177,7 @@ class Portfolio:
                 'exit_price': None,  # Initialize exit price as None
                 'amount': position_sizes[ticker]  # Use position size from position_sizes
             }
+            
             self.trade_logs.append(trade_log)
 
 
@@ -184,17 +191,16 @@ class Portfolio:
             ticker = position['ticker']
             exit_price = data.loc[:, ticker].tolist()[0]
             position['exit_price'] = exit_price
-           
-
+        
             # Update the trade log with exit price and date
             trade_log = {
                 'date': data.index[0],
                 'ticker': ticker,
-                'entry_price': position['entry_price'],
+                'entry_price': position['entry_price'].iloc[0],
                 'exit_price': exit_price,
                 'amount': position['amount']
             }
-            print(trade_log)
+            
             self.trade_logs.append(trade_log)
 
         # Update the positions list by removing the closed positions
@@ -219,9 +225,34 @@ class PositionSizer:
         self.risk_percentage = risk_percentage
 
     def calculate_position_size(self, data, toTrade):
+      
         # Extract the prices for the tickers in toTrade from the data
         prices = data[toTrade].copy()
 
+        # Calculate the log returns of the prices
+        returns = np.log(prices / prices.shift(1)).dropna()
+
+        # Calculate the volatility of each asset
+        volatilities = returns.std()
+
+        # Calculate the inverse of the volatilities
+        inv_volatilities = 1 / volatilities
+
+        # Normalize the inverse volatilities so they sum up to 1
+        weights = inv_volatilities / inv_volatilities.sum()
+        # Calculate the position size based on the weights and available capital
+        position_size = self.capital * weights
+
+        # Create a dictionary to store the ticker and corresponding position size
+        position_sizes = {ticker: size for ticker, size in zip(toTrade, position_size)}
+
+        # Return the position sizes
+        return position_sizes
+
+    def markov_position_size(self, data, toTrade):
+        # Extract the prices for the tickers in toTrade from the data
+        prices = data[toTrade].copy()
+        
         # Calculate the log returns of the prices
         returns = np.log(prices / prices.shift(1)).dropna()
 
@@ -238,8 +269,11 @@ class PositionSizer:
         # Set the initial guess for portfolio weights
         initial_weights = np.ones(len(toTrade)) / len(toTrade)
 
+        # Set the bounds for weights to be between 0 and 1
+        bounds = [(0, 1) for _ in range(len(toTrade))]
+
         # Perform portfolio optimization using the scipy minimize function
-        result = minimize(objective_function, initial_weights, method='SLSQP', constraints=constraint)
+        result = minimize(objective_function, initial_weights, method='SLSQP', constraints=constraint, bounds=bounds)
 
         # Get the optimal weights from the result
         optimal_weights = result.x
@@ -251,12 +285,12 @@ class PositionSizer:
         position_sizes = {ticker: size for ticker, size in zip(toTrade, position_size)}
 
         # Return the position sizes
-        return position_sizes
-strategies/ta_strategy.py
+        return position_sizesstrategies/ta_strategy.py
 from indicators.rsi import calculate_rsi
 from indicators.moving_average import calculate_moving_average
 from indicators.bollinger_bands import calculate_bollinger_bands
 import numpy as np
+import pandas as pd
 
 class TA_Strategies:
     def __init__(self, rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20):
@@ -272,14 +306,136 @@ class TA_Strategies:
         bollinger_band = calculate_bollinger_bands(data, window=self.bb_window)
 
         # Generate trading signals based on the conditions
-        signal = np.zeros_like(data)
+        signal = pd.Series(0, index=data.index)
 
         # Go long if the conditions are met
         long_conditions = (rsi < 50) & (long_momentum < 50) & (short_momentum > long_momentum) & (data > bollinger_band[2])
-        signal[long_conditions] = 1
+        signal.loc[long_conditions] = 1
 
         # Go short if the conditions are met
         short_conditions = (rsi > 50) & (long_momentum > 50) & (long_momentum < short_momentum) & (data < bollinger_band[2])
-        signal[short_conditions] = -1
+        signal.loc[short_conditions] = -1
+
+        # Forward fill the signal
+        signal = signal.fillna(method='ffill')
 
         return signal
+utils/data_loader.py
+import pandas as pd
+
+def load_commodities_data(file_path):
+    # Read the Excel file and load the "Return Indices" sheet
+    df = pd.read_excel(file_path, sheet_name='Return Indices')
+    df['Dates'] = pd.to_datetime(df['Dates'])
+    return df
+main.py
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import statsmodels.api as sm
+
+from utils.data_loader import load_commodities_data
+from portfolio.portfolio import Portfolio
+from backtesting.backtester import Backtester
+from strategies.ta_strategy import TA_Strategies
+
+import warnings
+warnings.filterwarnings("ignore")
+
+def perform_time_series_analysis(df):
+    statistics = []
+    
+    for column in df.columns:
+        # Remove missing values
+        column_data = df[column].dropna()
+        
+        # Perform time series analysis
+        decomposition = sm.tsa.seasonal_decompose(column_data, model='additive')
+        
+        # Calculate numerical statistics
+        mean = column_data.mean()
+        std = column_data.std()
+        autocorr = column_data.autocorr()
+        
+        # Store statistics in a dictionary
+        stats = {'Commodity': column,
+                 'Mean': mean,
+                 'Standard Deviation': std,
+                 'Autocorrelation': autocorr}
+        
+        # Append the dictionary to the list
+        statistics.append(stats)
+        
+        # Plot the original series, trend, seasonal, and residual components
+        plt.figure(figsize=(12, 8))
+        plt.subplot(411)
+        plt.plot(column_data.index, column_data, label='Original')
+        plt.legend(loc='best')
+        plt.subplot(412)
+        plt.plot(column_data.index, decomposition.trend, label='Trend')
+        plt.legend(loc='best')
+        plt.subplot(413)
+        plt.plot(column_data.index, decomposition.seasonal, label='Seasonal')
+        plt.legend(loc='best')
+        plt.subplot(414)
+        plt.plot(column_data.index, decomposition.resid, label='Residual')
+        plt.legend(loc='best')
+        plt.tight_layout()
+        plt.title(f'{column} - Time Series Analysis')
+        plt.show()
+    
+    # Create a dataframe from the list of dictionaries
+    statistics_df = pd.DataFrame(statistics)
+    
+    # Print the statistics dataframe
+    print(statistics_df)
+
+def calculate_commodity_market_factor(df):
+    market_factor = []
+    for index, row in df.iterrows():
+        available_assets = row.count() - 1  # Exclude the 'Dates' column
+        total_return = row.dropna().sum()
+        weighted_average = total_return / available_assets
+        market_factor.append(weighted_average)
+
+    df['Commodity Market Factor'] = market_factor
+
+    # Plot the commodity market factor
+    plt.figure(figsize=(10, 6))
+    plt.plot(df.index, df['Commodity Market Factor'])
+    plt.xlabel('Date')
+    plt.ylabel('Commodity Market Factor')
+    plt.title('Commodity Market Factor - Weighted Average')
+    plt.grid(True)
+    plt.show()
+
+    # Print descriptive statistics for the commodity market factor
+    market_factor_statistics = df['Commodity Market Factor'].describe()
+    print('\nCommodity Market Factor - Descriptive Statistics:')
+    print(market_factor_statistics)
+
+
+# Load the data from the Excel file
+file_path = 'data/raw/Commodities Data thru 18May23.xlsx'
+df = load_commodities_data(file_path)
+
+
+# Set the date column as the index
+df.set_index('Dates', inplace=True)
+
+# Perform time series analysis
+#perform_time_series_analysis(df)
+
+# Calculate commodity market factor
+#calculate_commodity_market_factor(df)
+
+strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
+
+portfolio = Portfolio(initial_capital=1)
+
+risk_percentage = 5
+
+# Create an instance of the Backtester class
+backtester = Backtester(df.copy(), strategy, risk_percentage, portfolio)
+
+backtester.execute_trades()

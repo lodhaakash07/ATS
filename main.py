@@ -1,13 +1,22 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils.data_loader import load_commodities_data
 import numpy as np
+import statsmodels.api as sm
+import os
+
+from utils.data_loader import load_commodities_data
 from portfolio.portfolio import Portfolio
 from backtesting.backtester import Backtester
 from strategies.ta_strategy import TA_Strategies
-import statsmodels.api as sm
+from backtesting.trade_analytics import generate_trade_analytics
+from backtesting.metrics import calculate_metrics
+
 import warnings
 warnings.filterwarnings("ignore")
+
+# Create the output folder if it doesn't exist
+output_folder = 'output'
+os.makedirs(output_folder, exist_ok=True)
 
 def perform_time_series_analysis(df):
     statistics = []
@@ -50,12 +59,19 @@ def perform_time_series_analysis(df):
         plt.tight_layout()
         plt.title(f'{column} - Time Series Analysis')
         plt.show()
+
+        # Save the figure as a PNG image
+        plt.savefig(f'{output_folder}/{column}_time_series_analysis.png')
+        
+        # Close the figure to release memory
+        plt.close()
     
     # Create a dataframe from the list of dictionaries
     statistics_df = pd.DataFrame(statistics)
     
     # Print the statistics dataframe
     print(statistics_df)
+
 def calculate_commodity_market_factor(df):
     market_factor = []
     for index, row in df.iterrows():
@@ -64,11 +80,13 @@ def calculate_commodity_market_factor(df):
         weighted_average = total_return / available_assets
         market_factor.append(weighted_average)
 
-    df['Commodity Market Factor'] = market_factor
-
+    cmf = pd.DataFrame(market_factor)
+    cmf.index = df.index
+   
+    return cmf
     # Plot the commodity market factor
     plt.figure(figsize=(10, 6))
-    plt.plot(df.index, df['Commodity Market Factor'])
+    plt.plot(cmf.index, cmf)
     plt.xlabel('Date')
     plt.ylabel('Commodity Market Factor')
     plt.title('Commodity Market Factor - Weighted Average')
@@ -76,9 +94,17 @@ def calculate_commodity_market_factor(df):
     plt.show()
 
     # Print descriptive statistics for the commodity market factor
-    market_factor_statistics = df['Commodity Market Factor'].describe()
+    market_factor_statistics = cmf.describe()
     print('\nCommodity Market Factor - Descriptive Statistics:')
     print(market_factor_statistics)
+
+    # Save the figure as a PNG image
+    plt.savefig(f'{output_folder}/commodity_market_factor.png')
+    
+    # Close the figure to release memory
+    plt.close()
+
+    return cmf
 
 
 # Load the data from the Excel file
@@ -89,19 +115,45 @@ df = load_commodities_data(file_path)
 # Set the date column as the index
 df.set_index('Dates', inplace=True)
 
+
 # Perform time series analysis
+print("Summary statistics for each assets")
 perform_time_series_analysis(df)
 
 # Calculate commodity market factor
-calculate_commodity_market_factor(df)
+print("Commodity market factor")
+cmf=calculate_commodity_market_factor(df)
+
 
 strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
 
 portfolio = Portfolio(initial_capital=1)
 
+portfolio_cmf = Portfolio(initial_capital=1)
+
 risk_percentage = 5
 
 # Create an instance of the Backtester class
 backtester = Backtester(df.copy(), strategy, risk_percentage, portfolio)
+backtester_cmf = Backtester(cmf.copy(), strategy, risk_percentage, portfolio_cmf)
 
 backtester.execute_trades()
+backtester_cmf.execute_trades()
+
+# Trade analytics 
+print(' Trade analytics for the portfolio')
+generate_trade_analytics(portfolio.trade_logs)
+
+print(' Trade Analytics for the Commodity Market Factor')
+generate_trade_analytics(portfolio_cmf.trade_logs)
+
+
+matrics = calculate_metrics(portfolio.trade_logs['pnl'], portfolio_cmf.trade_logs['pnl'])
+
+# Print the metrics
+print('Comparing metics of the commodity return vs commodity factor returns')
+for key, value in matrics.items():
+    print(key + ':', value)
+    
+
+

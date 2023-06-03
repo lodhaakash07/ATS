@@ -72,6 +72,19 @@ class Portfolio:
 
             currentTickers[position['ticker']] = 1 if position['amount'] > 0 else -1
         return currentTickers
+    
+    def processTradeLogs(self):
+        # Convert the trade logs to a DataFrame
+        self.trade_logs = pd.DataFrame(self.trade_logs)
+        self.trade_logs.set_index('date', inplace=True)
+        self.trade_logs.dropna(subset=['entry_price', 'exit_price'], inplace=True)
+        # Calculate the profit or loss for each trade
+        self.trade_logs['pnl'] = self.trade_logs['amount'] * (self.trade_logs['exit_price'] - self.trade_logs['entry_price'])
+    
+        # Calculate cumulative PnL
+        self.trade_logs['cumulative_pnl'] = self.trade_logs['pnl'].cumsum()
+        self.trade_logs.to_csv('data/processed/trade_logs.csv')
+
 
 
     
