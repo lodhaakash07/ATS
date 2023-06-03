@@ -84,16 +84,16 @@ def calculate_commodity_market_factor(df):
 # Load the data from the Excel file
 file_path = 'data/raw/Commodities Data thru 18May23.xlsx'
 df = load_commodities_data(file_path)
-df= df[:1000]
+
 
 # Set the date column as the index
 df.set_index('Dates', inplace=True)
 
 # Perform time series analysis
-#perform_time_series_analysis(df)
+perform_time_series_analysis(df)
 
 # Calculate commodity market factor
-#calculate_commodity_market_factor(df)
+calculate_commodity_market_factor(df)
 
 strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
 
