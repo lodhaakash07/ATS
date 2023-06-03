@@ -5,43 +5,57 @@ import numpy as np
 from portfolio.portfolio import Portfolio
 from backtesting.backtester import Backtester
 from strategies.ta_strategy import TA_Strategies
+import statsmodels.api as sm
 import warnings
 warnings.filterwarnings("ignore")
 
 def perform_time_series_analysis(df):
+    statistics = []
+    
     for column in df.columns:
-        # Calculate the moving average
-        ma = df[column].rolling(window=20).mean()
+        # Remove missing values
+        column_data = df[column].dropna()
         
-        # Calculate the trend direction based on the rate of change of the moving average
-        trend_direction = df[column].diff().apply(lambda x: 1 if x > 0 else -1)
+        # Perform time series analysis
+        decomposition = sm.tsa.seasonal_decompose(column_data, model='additive')
         
-        # Print numerical statistics
-        mean = df[column].mean()
-        std = df[column].std()
-        autocorr = df[column].autocorr()
-        print(f'Commodity: {column}')
-        print(f'Mean: {mean:.2f}')
-        print(f'Standard Deviation: {std:.2f}')
-        print(f'Autocorrelation: {autocorr:.2f}')
-        print('\n')
+        # Calculate numerical statistics
+        mean = column_data.mean()
+        std = column_data.std()
+        autocorr = column_data.autocorr()
         
-        # Plot the original, moving average, and trend direction
+        # Store statistics in a dictionary
+        stats = {'Commodity': column,
+                 'Mean': mean,
+                 'Standard Deviation': std,
+                 'Autocorrelation': autocorr}
+        
+        # Append the dictionary to the list
+        statistics.append(stats)
+        
+        # Plot the original series, trend, seasonal, and residual components
         plt.figure(figsize=(12, 8))
-        plt.subplot(311)
-        plt.plot(df.index, df[column], label='Original')
+        plt.subplot(411)
+        plt.plot(column_data.index, column_data, label='Original')
         plt.legend(loc='best')
-        plt.subplot(312)
-        plt.plot(df.index, ma, label='Moving Average')
+        plt.subplot(412)
+        plt.plot(column_data.index, decomposition.trend, label='Trend')
         plt.legend(loc='best')
-        plt.subplot(313)
-        plt.plot(df.index, trend_direction, label='Trend Direction')
+        plt.subplot(413)
+        plt.plot(column_data.index, decomposition.seasonal, label='Seasonal')
+        plt.legend(loc='best')
+        plt.subplot(414)
+        plt.plot(column_data.index, decomposition.resid, label='Residual')
         plt.legend(loc='best')
         plt.tight_layout()
         plt.title(f'{column} - Time Series Analysis')
         plt.show()
-
-
+    
+    # Create a dataframe from the list of dictionaries
+    statistics_df = pd.DataFrame(statistics)
+    
+    # Print the statistics dataframe
+    print(statistics_df)
 def calculate_commodity_market_factor(df):
     market_factor = []
     for index, row in df.iterrows():
@@ -74,7 +88,7 @@ df = load_commodities_data(file_path)
 
 # Set the date column as the index
 df.set_index('Dates', inplace=True)
-df.sort_index(inplace=True)
+
 # Perform time series analysis
 #perform_time_series_analysis(df)
 
@@ -83,9 +97,9 @@ df.sort_index(inplace=True)
 
 strategy = TA_Strategies(rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20)
 
-portfolio = Portfolio(initial_capital=10000000)
+portfolio = Portfolio(initial_capital=1)
 
-risk_percentage = 0.05
+risk_percentage = 5
 
 # Create an instance of the Backtester class
 backtester = Backtester(df.copy(), strategy, risk_percentage, portfolio)

@@ -1,0 +1,306 @@
+backtesting/backtester.py
+from risk_management.transaction_cost import calculate_transaction_cost
+from risk_management.position_sizing import PositionSizer
+from strategies.ta_strategy import TA_Strategies
+import pandas as pd
+import matplotlib.pyplot as plt
+
+class Backtester:
+    def __init__(self, data, strategy, risk_percentage, portfolio):
+        self.data = data
+        self.strategy = strategy
+        self.portfolio = portfolio
+        self.signal = pd.DataFrame(index=data.index)
+        self.risk_percentage = risk_percentage
+        self.position_sizer = PositionSizer(self.portfolio.capital, self.risk_percentage)
+
+
+    def execute_trades(self):
+
+        # Generate the signal for trade
+        for column in self.data.columns:
+            # Extract the price for the current commodity
+            price = self.data[column]
+
+            # Generate trading signals based on the TA strategy
+            signal = self.strategy.generate_signal(price)
+            
+            self.signal[column] = signal
+        
+        self.signal.to_csv('1.csv') 
+        
+        for index, row in self.signal.iterrows():
+            # extrct columns for which the value is non-zero
+            to_trade = row[row != 0].index.tolist()
+           
+                
+        
+            if to_trade:
+                # Check if these tickers are already trading in the portfolio
+                isNewTrade = False
+                for ticker in to_trade:
+                    if ticker not in self.portfolio.positions:
+                        self.portfolio.remove_positions(self.data.loc[index, :])
+                        position_size = self.position_sizer.calculate_position_size(self.data.loc[:index, ], to_trade)
+                        for temp in to_trade:
+                            position_size[temp] = position_size[temp] * row[temp]
+                        self.portfolio.add_positions(to_trade, position_size, self.data.loc[index, :])
+                        isNewTrade = True
+                        break
+                if not isNewTrade:
+                    self.portfolio.update_pnl(self.data.loc[index, :])
+
+     
+       
+        self.portfolio.cumulative_pnl.set_index('Date', inplace=True)
+        self.portfolio.cumulative_pnl.plot(figsize=(10, 6))
+        plt.xlabel('Date')
+        plt.ylabel('Cumulative PnL')
+        plt.title('Cumulative PnL Over Time')
+        plt.grid(True)
+        plt.show()
+
+indicators/bollinger_bands.py
+def calculate_bollinger_bands(data, window):
+    # Calculate the rolling mean (SMA) using the window size
+    sma = data.rolling(window).mean()
+    
+    # Calculate the rolling standard deviation (std) using the window size
+    std = data.rolling(window).std()
+    
+    # Calculate the upper band as the SMA plus 2 times the std
+    upper_band = sma + 2 * std
+    
+    # Calculate the lower band as the SMA minus 2 times the std
+    lower_band = sma - 2 * std
+    
+    return upper_band, lower_band, sma
+indicators/moving_average.py
+import numpy as np
+
+def calculate_moving_average(data, period, type='simple'):
+    if type == 'simple':
+        return data.rolling(window=period).mean()
+    elif type == 'weighted':
+        weights = np.arange(1, period + 1)
+        return data.rolling(window=period).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
+    elif type == 'ema':
+        return data.ewm(span=period, adjust=False).mean()
+    else:
+        raise ValueError("Invalid moving average type. Supported types are 'simple', 'weighted', and 'ema'.")
+
+
+
+def calculate_kama(price_series, n=10, pow1=2, pow2=30):
+    '''Calculate the Kaufman Adaptive Moving Average(KAMA) for a given series
+    Parameters:
+        price_series : pandas series, timeseries of price 
+        n            : integer, lookback period
+        pow1         : integer, fastest limit of exponential moving average window
+        pow2         : integer, slowest limit of exponential moving average window
+    Return:
+        pandas series of KAMA indicator
+    '''
+    # Calculate the absolute price change (daily)
+    delta = abs(price_series - price_series.shift())
+    
+    # Calculate the efficiency ratio = delta(n)/sum(n)
+    efficiency_ratio = abs(price_series - price_series.shift(n)) / delta.rolling(n).sum()
+
+    # Calculate the smoothing constant
+    smoothing_constant = (efficiency_ratio * (2 / (pow1 + 1) - 2 / (pow2 + 1)) + 2 / (pow2 + 1)) ** 2
+
+    # Calculate the KAMA
+    kama = np.zeros_like(price_series)
+    kama[:n] = price_series[:n]
+    
+    for i in range(n, len(price_series)):
+        kama[i] = kama[i - 1] + smoothing_constant[i] * (price_series[i] - kama[i - 1])
+    
+    return pd.Series(kama, index=price_series.index)indicators/rsi.py
+import numpy as np
+
+def calculate_rsi(data, window=14):
+    diff = data.diff()
+    up = diff.where(diff > 0, 0)
+    down = -diff.where(diff < 0, 0)
+    avg_gain = up.rolling(window).mean()
+    avg_loss = down.rolling(window).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+portfolio/portfolio.py
+import pandas as pd
+import csv
+
+class Portfolio:
+    def __init__(self, initial_capital):
+        self.initial_capital = initial_capital
+        self.capital = initial_capital
+        self.positions = []
+        self.trade_logs = []
+        self.cumulative_pnl = pd.DataFrame(columns=['Date', 'PnL'])
+
+    def add_positions(self, to_trade, position_sizes, data):
+
+        # Iterate over the tickers to add positions
+        for ticker in to_trade:
+            entry_price = data.index
+
+            position = {
+                'date': data.index,
+                'ticker': ticker,
+                'entry_price': data[ticker],
+                'amount': position_sizes[ticker],  # Use position size from position_sizes
+                'exit_price': None  # Initialize exit price as None
+            }
+
+            self.positions.append(position)
+
+            # Add the trade to trade_logs
+            trade_log = {
+                'date': data.index,
+                'ticker': ticker,
+                'entry_price': entry_price,
+                'exit_price': None,  # Initialize exit price as None
+                'amount': position_sizes[ticker]  # Use position size from position_sizes
+            }
+
+            self.trade_logs.append(trade_log)
+
+
+    def remove_positions(self, data):
+        self.update_pnl(data)
+        updated_positions = []
+        file_path = 'trade_logs.csv'
+
+
+
+        for position in self.positions:
+            ticker = position['ticker']
+            exit_price = data.loc[ticker]
+            position['exit_price'] = exit_price
+           
+   
+            print("Ticker:", ticker, position['amount'], position['entry_price'], exit_price)
+           
+
+            # Update the trade log with exit price and date
+            trade_log = {
+                'date': data.index,
+                'ticker': ticker,
+                'entry_price': position['entry_price'],
+                'exit_price': exit_price,
+                'amount': position['amount']
+            }
+            self.trade_logs.append(trade_log)
+
+        # Update the positions list by removing the closed positions
+        self.positions = updated_positions
+
+
+    def update_pnl(self, data):
+
+        pnl = 0;
+
+        for position in self.positions:
+            ticker = position['ticker']
+            entry_price = position['entry_price']
+            exit_price = data.loc[ticker]
+            amount = position['amount']
+
+            # Calculate P&L
+            pnl = pnl+((exit_price - entry_price) * amount)
+
+            # Update cumulative P&L
+        self.cumulative_pnl = pd.concat([self.cumulative_pnl, pd.DataFrame({'Date': [data.index], 'PnL': [pnl]})])
+
+    def get_pnl(self, data):
+
+        pnl = 0;
+
+        for position in self.positions:
+            ticker = position['ticker']
+            entry_price = position['entry_price']
+            exit_price = data.loc[ticker]
+            amount = position['amount']
+
+            # Calculate P&L
+            pnl = pnl+((exit_price - entry_price) * amount)
+
+            # Update cumulative P&L
+        return pnlrisk_management/position_sizing.py
+import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+
+class PositionSizer:
+    def __init__(self, capital, risk_percentage):
+        self.capital = capital
+        self.risk_percentage = risk_percentage
+
+    def calculate_position_size(self, data, toTrade):
+        # Extract the prices for the tickers in toTrade from the data
+        prices = data[toTrade].copy()
+
+        # Calculate the log returns of the prices
+        returns = np.log(prices / prices.shift(1)).dropna()
+
+        # Define the objective function for portfolio optimization
+        def objective_function(weights):
+            portfolio_returns = np.dot(returns, weights)
+            portfolio_variance = np.dot(weights, np.dot(returns.cov(), weights))
+            utility = portfolio_returns - 0.5 * self.risk_percentage * portfolio_variance
+            return -np.sum(1 / utility)  # Use the inverse of utility as the objective
+
+        # Define the constraint for portfolio weights summing up to 1
+        constraint = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
+
+        # Set the initial guess for portfolio weights
+        initial_weights = np.ones(len(toTrade)) / len(toTrade)
+
+        # Perform portfolio optimization using the scipy minimize function
+        result = minimize(objective_function, initial_weights, method='SLSQP', constraints=constraint)
+
+        # Get the optimal weights from the result
+        optimal_weights = result.x
+
+        # Calculate the position size based on the optimal weights and available capital
+        position_size = self.capital * optimal_weights
+
+        # Create a dictionary to store the ticker and corresponding position size
+        position_sizes = {ticker: size for ticker, size in zip(toTrade, position_size)}
+
+        # Return the position sizes
+        return position_sizes
+strategies/ta_strategy.py
+from indicators.rsi import calculate_rsi
+from indicators.moving_average import calculate_moving_average
+from indicators.bollinger_bands import calculate_bollinger_bands
+import numpy as np
+
+class TA_Strategies:
+    def __init__(self, rsi_window=9, ma_short_period=3, ma_long_period=21, bb_window=20):
+        self.rsi_window = rsi_window
+        self.ma_short_period = ma_short_period
+        self.ma_long_period = ma_long_period
+        self.bb_window = bb_window
+
+    def generate_signal(self, data):
+        rsi = calculate_rsi(data, window=self.rsi_window)
+        long_momentum = calculate_moving_average(rsi, period=self.ma_long_period, type="weighted")
+        short_momentum = calculate_moving_average(rsi, period=self.ma_short_period, type="ema")
+        bollinger_band = calculate_bollinger_bands(data, window=self.bb_window)
+
+        # Generate trading signals based on the conditions
+        signal = np.zeros_like(data)
+
+        # Go long if the conditions are met
+        long_conditions = (rsi < 50) & (long_momentum < 50) & (short_momentum > long_momentum) & (data > bollinger_band[2])
+        signal[long_conditions] = 1
+
+        # Go short if the conditions are met
+        short_conditions = (rsi > 50) & (long_momentum > 50) & (long_momentum < short_momentum) & (data < bollinger_band[2])
+        signal[short_conditions] = -1
+
+        return signal

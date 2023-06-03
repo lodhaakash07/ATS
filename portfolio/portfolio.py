@@ -1,4 +1,5 @@
 import pandas as pd
+import csv
 
 class Portfolio:
     def __init__(self, initial_capital):
@@ -6,7 +7,7 @@ class Portfolio:
         self.capital = initial_capital
         self.positions = []
         self.trade_logs = []
-        self.cumulative_pnl = [0]
+        self.cumulative_pnl = pd.DataFrame(columns=['Date', 'PnL'])
 
     def add_positions(self, to_trade, position_sizes, data):
 
@@ -34,13 +35,19 @@ class Portfolio:
             }
 
             self.trade_logs.append(trade_log)
+
+
     def remove_positions(self, data):
         self.update_pnl(data)
         updated_positions = []
+
+
+
         for position in self.positions:
             ticker = position['ticker']
             exit_price = data.loc[ticker]
             position['exit_price'] = exit_price
+           
 
             # Update the trade log with exit price and date
             trade_log = {
@@ -54,6 +61,13 @@ class Portfolio:
 
         # Update the positions list by removing the closed positions
         self.positions = updated_positions
+
+    def getCurrentTickers(self):
+        currentTickers = {}
+        for position in self.positions:
+
+            currentTickers[position['ticker']] = 1 if position['amount'] > 0 else -1
+        return currentTickers
 
 
     def update_pnl(self, data):
@@ -70,7 +84,7 @@ class Portfolio:
             pnl = pnl+((exit_price - entry_price) * amount)
 
             # Update cumulative P&L
-        self.cumulative_pnl.append(pnl+self.cumulative_pnl[-1])
+        self.cumulative_pnl = pd.concat([self.cumulative_pnl, pd.DataFrame({'Date': [data.index], 'PnL': [pnl]})])
 
     def get_pnl(self, data):
 
@@ -86,4 +100,4 @@ class Portfolio:
             pnl = pnl+((exit_price - entry_price) * amount)
 
             # Update cumulative P&L
-        return pnl+self.cumulative_pnl[-1]
+        return pnl
