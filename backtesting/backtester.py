@@ -60,8 +60,13 @@ class Backtester:
                     for temp in to_trade:
                         position_size[temp] = position_size[temp] * row[temp]
                     self.portfolio.add_positions(to_trade, position_size, self.data.loc[[index], :])
+                
+                #if currentPositions:
+                   # self.portfolio.updatePortfolioPnl(self.data.loc[[index], :])
         
+        #self.portfolio.updatePortfolioPnl(self.data.loc[[index], :])
         self.portfolio.remove_positions(self.data.iloc[[self.data.shape[0] - 1], :])
         self.portfolio.processTradeLogs()
+        #self.portfolio.processPortfolioPnl()
 
        

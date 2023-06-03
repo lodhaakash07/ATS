@@ -10,6 +10,7 @@ from backtesting.backtester import Backtester
 from strategies.ta_strategy import TA_Strategies
 from backtesting.trade_analytics import generate_trade_analytics
 from backtesting.metrics import calculate_metrics
+from backtesting.sensitivity_analysis import find_sensitivity
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -118,7 +119,7 @@ df.set_index('Dates', inplace=True)
 
 # Perform time series analysis
 print("Summary statistics for each assets")
-perform_time_series_analysis(df)
+#perform_time_series_analysis(df)
 
 # Calculate commodity market factor
 print("Commodity market factor")
@@ -155,5 +156,8 @@ print('Comparing metics of the commodity return vs commodity factor returns')
 for key, value in matrics.items():
     print(key + ':', value)
     
-
-
+# Sensitivity to market factors
+common_index = portfolio.trade_logs.index.intersection(portfolio_cmf.trade_logs.index)
+subset_returns = portfolio.trade_logs.loc[common_index, 'pnl']
+subset_cmf_returns = portfolio_cmf.trade_logs.loc[common_index, 'pnl']
+#print("Sensitivity to CMF : ", find_sensitivity(subset_returns, subset_cmf_returns))

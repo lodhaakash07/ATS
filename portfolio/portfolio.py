@@ -8,6 +8,7 @@ class Portfolio:
         self.capital = initial_capital
         self.positions = []
         self.trade_logs = []
+        self.portfolio_pnl = []
 
     def add_positions(self, to_trade, position_sizes, data):
 
@@ -87,4 +88,26 @@ class Portfolio:
 
 
 
+    def updatePortfolioPnl(self, data):
+        pnl = 0;
+        for position in self.positions:
+            exit_price = data.loc[:, position['ticker']].tolist()[0]
+            entry_price = position['entry_price'][0],
+            pnl = pnl + ((exit_price - entry_price) * position['amount'])
+
+        pnl_update = {
+                'date': data.index[0],
+                'pnl': pnl,
+        }
+            
+        self.portfolio_pnl.append(pnl_update)
+
+    def processPortfolioPnl(self):
+        # Convert the trade logs to a DataFrame
+        self.portfolio_pnl = pd.DataFrame(self.portfolio_pnl)
+        self.portfolio_pnl.set_index('date', inplace=True)
+        # Calculate the profit or loss for each trade
+        self.portfolio_pnl['returns'] = self.portfolio_pnl['pnl'].pct_change()
     
+        # Calculate cumulative PnL
+        self.portfolio_pnl['cumulative_pnl'] = self.portfolio_pnl['returns'].cumsum()
