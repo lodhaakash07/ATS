@@ -35,7 +35,7 @@ class PositionSizer:
     def markov_position_size(self, data, toTrade):
         # Extract the prices for the tickers in toTrade from the data
         prices = data[toTrade].copy()
-        print(prices.head())
+        
         # Calculate the log returns of the prices
         returns = np.log(prices / prices.shift(1)).dropna()
 
@@ -52,8 +52,11 @@ class PositionSizer:
         # Set the initial guess for portfolio weights
         initial_weights = np.ones(len(toTrade)) / len(toTrade)
 
+        # Set the bounds for weights to be between 0 and 1
+        bounds = [(0, 1) for _ in range(len(toTrade))]
+
         # Perform portfolio optimization using the scipy minimize function
-        result = minimize(objective_function, initial_weights, method='SLSQP', constraints=constraint)
+        result = minimize(objective_function, initial_weights, method='SLSQP', constraints=constraint, bounds=bounds)
 
         # Get the optimal weights from the result
         optimal_weights = result.x

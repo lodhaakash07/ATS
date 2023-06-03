@@ -54,8 +54,8 @@ class Backtester:
 
                     if(currentPositions):
                         self.portfolio.remove_positions(self.data.loc[[index], :])
-                    position_size = self.position_sizer.calculate_position_size(self.data.loc[:index, ], to_trade)
-                    print(position_size)
+                    position_size = self.position_sizer.markov_position_size(self.data.loc[:index, ], to_trade)
+                 
                
                     for temp in to_trade:
                         position_size[temp] = position_size[temp] * row[temp]
