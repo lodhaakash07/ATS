@@ -8,9 +8,34 @@ class PositionSizer:
         self.risk_percentage = risk_percentage
 
     def calculate_position_size(self, data, toTrade):
+      
         # Extract the prices for the tickers in toTrade from the data
         prices = data[toTrade].copy()
 
+        # Calculate the log returns of the prices
+        returns = np.log(prices / prices.shift(1)).dropna()
+
+        # Calculate the volatility of each asset
+        volatilities = returns.std()
+
+        # Calculate the inverse of the volatilities
+        inv_volatilities = 1 / volatilities
+
+        # Normalize the inverse volatilities so they sum up to 1
+        weights = inv_volatilities / inv_volatilities.sum()
+        # Calculate the position size based on the weights and available capital
+        position_size = self.capital * weights
+
+        # Create a dictionary to store the ticker and corresponding position size
+        position_sizes = {ticker: size for ticker, size in zip(toTrade, position_size)}
+
+        # Return the position sizes
+        return position_sizes
+
+    def markov_position_size(self, data, toTrade):
+        # Extract the prices for the tickers in toTrade from the data
+        prices = data[toTrade].copy()
+        print(prices.head())
         # Calculate the log returns of the prices
         returns = np.log(prices / prices.shift(1)).dropna()
 

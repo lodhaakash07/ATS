@@ -4,6 +4,7 @@ from risk_management.position_sizing import PositionSizer
 from strategies.ta_strategy import TA_Strategies
 import pandas as pd
 import matplotlib.pyplot as plt
+from backtesting.trade_analytics import generate_trade_analytics
 
 
 class Backtester:
@@ -34,11 +35,9 @@ class Backtester:
             to_trade = row[row != 0].index.tolist()
            
 
-        
             if to_trade:
                 # Check if these tickers are already trading in the portfolio
-       
-                
+                      
                 currentPositions = self.portfolio.getCurrentTickers()
 
                 rebalance = False
@@ -54,12 +53,17 @@ class Backtester:
                         if key not in to_trade:
                             to_trade.append(key)
 
-                    self.portfolio.remove_positions(self.data.loc[index, :])
+
+                    self.portfolio.remove_positions(self.data.loc[[index], :])
                     position_size = self.position_sizer.calculate_position_size(self.data.loc[:index, ], to_trade)
                     for temp in to_trade:
                         position_size[temp] = position_size[temp] * row[temp]
-                    self.portfolio.add_positions(to_trade, position_size, self.data.loc[index, :])
-        print(self.portfolio.trade_logs)
+                    self.portfolio.add_positions(to_trade, position_size, self.data.loc[[index], :])
+        
+        
+        self.portfolio.remove_positions(self.data.iloc[[self.data.shape[0] - 1], :])
+        generate_trade_analytics(self.portfolio.trade_logs)
+
        indicators/bollinger_bands.py
 def calculate_bollinger_bands(data, window):
     # Calculate the rolling mean (SMA) using the window size
@@ -145,10 +149,10 @@ class Portfolio:
 
         # Iterate over the tickers to add positions
         for ticker in to_trade:
-            entry_price = data.index
-
+            
+            entry_price = data[ticker].tolist()[0]
             position = {
-                'date': data.index,
+                'date': data.index[0],
                 'ticker': ticker,
                 'entry_price': data[ticker],
                 'amount': position_sizes[ticker],  # Use position size from position_sizes
@@ -157,15 +161,16 @@ class Portfolio:
 
             self.positions.append(position)
 
+            
+
             # Add the trade to trade_logs
             trade_log = {
-                'date': data.index,
+                'date': data.index[0],
                 'ticker': ticker,
                 'entry_price': entry_price,
                 'exit_price': None,  # Initialize exit price as None
                 'amount': position_sizes[ticker]  # Use position size from position_sizes
             }
-
             self.trade_logs.append(trade_log)
 
 
@@ -177,18 +182,19 @@ class Portfolio:
 
         for position in self.positions:
             ticker = position['ticker']
-            exit_price = data.loc[ticker]
+            exit_price = data.loc[:, ticker].tolist()[0]
             position['exit_price'] = exit_price
            
 
             # Update the trade log with exit price and date
             trade_log = {
-                'date': data.index,
+                'date': data.index[0],
                 'ticker': ticker,
                 'entry_price': position['entry_price'],
                 'exit_price': exit_price,
                 'amount': position['amount']
             }
+            print(trade_log)
             self.trade_logs.append(trade_log)
 
         # Update the positions list by removing the closed positions

@@ -15,6 +15,7 @@ class Portfolio:
         for ticker in to_trade:
             
             entry_price = data[ticker].tolist()[0]
+      
             position = {
                 'date': data.index[0],
                 'ticker': ticker,
@@ -22,12 +23,13 @@ class Portfolio:
                 'amount': position_sizes[ticker],  # Use position size from position_sizes
                 'exit_price': None  # Initialize exit price as None
             }
-
+            
             self.positions.append(position)
 
             
 
             # Add the trade to trade_logs
+            
             trade_log = {
                 'date': data.index[0],
                 'ticker': ticker,
@@ -35,6 +37,7 @@ class Portfolio:
                 'exit_price': None,  # Initialize exit price as None
                 'amount': position_sizes[ticker]  # Use position size from position_sizes
             }
+            
             self.trade_logs.append(trade_log)
 
 
@@ -48,17 +51,16 @@ class Portfolio:
             ticker = position['ticker']
             exit_price = data.loc[:, ticker].tolist()[0]
             position['exit_price'] = exit_price
-           
-
+        
             # Update the trade log with exit price and date
             trade_log = {
                 'date': data.index[0],
                 'ticker': ticker,
-                'entry_price': position['entry_price'],
+                'entry_price': position['entry_price'].iloc[0],
                 'exit_price': exit_price,
                 'amount': position['amount']
             }
-            print(trade_log)
+            
             self.trade_logs.append(trade_log)
 
         # Update the positions list by removing the closed positions
