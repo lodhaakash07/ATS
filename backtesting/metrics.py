@@ -51,7 +51,6 @@ def calculate_metrics(returns, benchmark_returns=None, risk_free_rate=0.03, targ
     if benchmark_returns is not None:
         metrics['Information Ratio'] = calculate_information_ratio(returns, benchmark_returns)
         metrics['Alpha'] = calculate_alpha(returns, benchmark_returns, risk_free_rate)
-       # metrics['Beta'] = calculate_beta(returns, benchmark_returns, risk_free_rate)
         metrics['Tracking Error'] = calculate_tracking_error(returns, benchmark_returns)
 
     return metrics

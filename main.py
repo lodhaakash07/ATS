@@ -84,7 +84,7 @@ def calculate_commodity_market_factor(df):
     cmf = pd.DataFrame(market_factor)
     cmf.index = df.index
    
-    return cmf
+   
     # Plot the commodity market factor
     plt.figure(figsize=(10, 6))
     plt.plot(cmf.index, cmf)
@@ -138,15 +138,16 @@ risk_percentage = 5
 backtester = Backtester(df.copy(), strategy, risk_percentage, portfolio)
 backtester_cmf = Backtester(cmf.copy(), strategy, risk_percentage, portfolio_cmf)
 
-backtester.execute_trades()
-backtester_cmf.execute_trades()
+backtester.execute_trades("portfolio")
+backtester_cmf.execute_trades("cmf")
 
 # Trade analytics 
 print(' Trade analytics for the portfolio')
 generate_trade_analytics(portfolio.trade_logs)
 
 print(' Trade Analytics for the Commodity Market Factor')
-generate_trade_analytics(portfolio_cmf.trade_logs)
+generate_trade_analytics(portfolio_cmf.trade_logs )
+
 
 
 matrics = calculate_metrics(portfolio.trade_logs['pnl'], portfolio_cmf.trade_logs['pnl'])
@@ -160,4 +161,19 @@ for key, value in matrics.items():
 common_index = portfolio.trade_logs.index.intersection(portfolio_cmf.trade_logs.index)
 subset_returns = portfolio.trade_logs.loc[common_index, 'pnl']
 subset_cmf_returns = portfolio_cmf.trade_logs.loc[common_index, 'pnl']
-#print("Sensitivity to CMF : ", find_sensitivity(subset_returns, subset_cmf_returns))
+
+
+# Sector wise contribution
+
+sector_mappings = pd.read_excel(file_path, sheet_name='Assets')
+sector_mappings = dict(zip(sector_mappings['Commodity'], sector_mappings['Sector']))
+portfolio.trade_logs['Sector'] = portfolio.trade_logs['ticker'].apply(lambda x: next((v for k, v in sector_mappings.items() if k in x), 'noMatching'))
+
+# Calculate the sector-wise total PnL
+sector_pnl = portfolio.trade_logs.groupby('Sector')['pnl'].sum()
+
+
+
+# Print the sector-wise PnL
+print('Sector-wise PnL:')
+print(sector_pnl)

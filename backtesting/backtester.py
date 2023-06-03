@@ -16,7 +16,7 @@ class Backtester:
         self.position_sizer = PositionSizer(self.portfolio.capital, self.risk_percentage)
 
 
-    def execute_trades(self):
+    def execute_trades(self, name=""):
 
         # Generate the signal for trade
         for column in self.data.columns:
@@ -66,7 +66,7 @@ class Backtester:
         
         #self.portfolio.updatePortfolioPnl(self.data.loc[[index], :])
         self.portfolio.remove_positions(self.data.iloc[[self.data.shape[0] - 1], :])
-        self.portfolio.processTradeLogs()
+        self.portfolio.processTradeLogs(name)
         #self.portfolio.processPortfolioPnl()
 
        
