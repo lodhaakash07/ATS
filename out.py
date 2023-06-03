@@ -1,3 +1,4 @@
+main.py
 import pandas as pd
 import matplotlib.pyplot as plt
 from utils.data_loader import load_commodities_data
@@ -84,7 +85,7 @@ def calculate_commodity_market_factor(df):
 # Load the data from the Excel file
 file_path = 'data/raw/Commodities Data thru 18May23.xlsx'
 df = load_commodities_data(file_path)
-df= df[:1000]
+
 
 # Set the date column as the index
 df.set_index('Dates', inplace=True)

@@ -33,11 +33,9 @@ class Backtester:
             to_trade = row[row != 0].index.tolist()
            
 
-        
             if to_trade:
                 # Check if these tickers are already trading in the portfolio
-       
-                
+                      
                 currentPositions = self.portfolio.getCurrentTickers()
 
                 rebalance = False
@@ -53,10 +51,12 @@ class Backtester:
                         if key not in to_trade:
                             to_trade.append(key)
 
-                    self.portfolio.remove_positions(self.data.loc[index, :])
+
+                    self.portfolio.remove_positions(self.data.loc[[index], :])
                     position_size = self.position_sizer.calculate_position_size(self.data.loc[:index, ], to_trade)
                     for temp in to_trade:
                         position_size[temp] = position_size[temp] * row[temp]
-                    self.portfolio.add_positions(to_trade, position_size, self.data.loc[index, :])
-        print(self.portfolio.cumulative_pnl)
+                    self.portfolio.add_positions(to_trade, position_size, self.data.loc[[index], :])
+        print(pd.DataFrame(self.portfolio.trade_logs).set_index('date').to_csv('yoloo.csv'))
+
        

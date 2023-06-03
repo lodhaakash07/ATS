@@ -5,6 +5,7 @@ from strategies.ta_strategy import TA_Strategies
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 class Backtester:
     def __init__(self, data, strategy, risk_percentage, portfolio):
         self.data = data
@@ -27,40 +28,39 @@ class Backtester:
             
             self.signal[column] = signal
         
-        self.signal.to_csv('1.csv') 
         
         for index, row in self.signal.iterrows():
             # extrct columns for which the value is non-zero
             to_trade = row[row != 0].index.tolist()
            
-                
+
         
             if to_trade:
                 # Check if these tickers are already trading in the portfolio
-                isNewTrade = False
-                for ticker in to_trade:
-                    if ticker not in self.portfolio.positions:
-                        self.portfolio.remove_positions(self.data.loc[index, :])
-                        position_size = self.position_sizer.calculate_position_size(self.data.loc[:index, ], to_trade)
-                        for temp in to_trade:
-                            position_size[temp] = position_size[temp] * row[temp]
-                        self.portfolio.add_positions(to_trade, position_size, self.data.loc[index, :])
-                        isNewTrade = True
-                        break
-                if not isNewTrade:
-                    self.portfolio.update_pnl(self.data.loc[index, :])
-
-     
        
-        self.portfolio.cumulative_pnl.set_index('Date', inplace=True)
-        self.portfolio.cumulative_pnl.plot(figsize=(10, 6))
-        plt.xlabel('Date')
-        plt.ylabel('Cumulative PnL')
-        plt.title('Cumulative PnL Over Time')
-        plt.grid(True)
-        plt.show()
+                
+                currentPositions = self.portfolio.getCurrentTickers()
 
-indicators/bollinger_bands.py
+                rebalance = False
+                for ticker in to_trade:
+                    if (not currentPositions.get(ticker)):
+                        rebalance = True
+                    else:
+                        if int(currentPositions[ticker]) != int(row[ticker]):
+                            rebalance = True;
+                
+                if rebalance:
+                    for key, value in currentPositions.items():
+                        if key not in to_trade:
+                            to_trade.append(key)
+
+                    self.portfolio.remove_positions(self.data.loc[index, :])
+                    position_size = self.position_sizer.calculate_position_size(self.data.loc[:index, ], to_trade)
+                    for temp in to_trade:
+                        position_size[temp] = position_size[temp] * row[temp]
+                    self.portfolio.add_positions(to_trade, position_size, self.data.loc[index, :])
+        print(self.portfolio.trade_logs)
+       indicators/bollinger_bands.py
 def calculate_bollinger_bands(data, window):
     # Calculate the rolling mean (SMA) using the window size
     sma = data.rolling(window).mean()
@@ -132,6 +132,7 @@ def calculate_rsi(data, window=14):
 portfolio/portfolio.py
 import pandas as pd
 import csv
+import numpy as np
 
 class Portfolio:
     def __init__(self, initial_capital):
@@ -139,7 +140,6 @@ class Portfolio:
         self.capital = initial_capital
         self.positions = []
         self.trade_logs = []
-        self.cumulative_pnl = pd.DataFrame(columns=['Date', 'PnL'])
 
     def add_positions(self, to_trade, position_sizes, data):
 
@@ -170,9 +170,8 @@ class Portfolio:
 
 
     def remove_positions(self, data):
-        self.update_pnl(data)
+
         updated_positions = []
-        file_path = 'trade_logs.csv'
 
 
 
@@ -180,9 +179,6 @@ class Portfolio:
             ticker = position['ticker']
             exit_price = data.loc[ticker]
             position['exit_price'] = exit_price
-           
-   
-            print("Ticker:", ticker, position['amount'], position['entry_price'], exit_price)
            
 
             # Update the trade log with exit price and date
@@ -198,38 +194,15 @@ class Portfolio:
         # Update the positions list by removing the closed positions
         self.positions = updated_positions
 
-
-    def update_pnl(self, data):
-
-        pnl = 0;
-
+    def getCurrentTickers(self):
+        currentTickers = {}
         for position in self.positions:
-            ticker = position['ticker']
-            entry_price = position['entry_price']
-            exit_price = data.loc[ticker]
-            amount = position['amount']
 
-            # Calculate P&L
-            pnl = pnl+((exit_price - entry_price) * amount)
+            currentTickers[position['ticker']] = 1 if position['amount'] > 0 else -1
+        return currentTickers
 
-            # Update cumulative P&L
-        self.cumulative_pnl = pd.concat([self.cumulative_pnl, pd.DataFrame({'Date': [data.index], 'PnL': [pnl]})])
 
-    def get_pnl(self, data):
-
-        pnl = 0;
-
-        for position in self.positions:
-            ticker = position['ticker']
-            entry_price = position['entry_price']
-            exit_price = data.loc[ticker]
-            amount = position['amount']
-
-            # Calculate P&L
-            pnl = pnl+((exit_price - entry_price) * amount)
-
-            # Update cumulative P&L
-        return pnlrisk_management/position_sizing.py
+    risk_management/position_sizing.py
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
